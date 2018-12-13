@@ -1,6 +1,7 @@
 ﻿Shader "Custom/Water"
 {
-	Properties{
+	Properties
+	{
 		_Gravity("Gravity", Float) = 9.8
 		_WaveA("Wave A (Direction(x,y), Steepness(z), Wave Length(w))", Vector) = (1,0,0.5,10)
 		_WaveB("Wave B", Vector) = (0,1,0.25,20)
@@ -13,7 +14,10 @@
 	}
 	SubShader
 	{ 
+		// We need to render behind the water first to distort it.
 		Tags{ "Queue" = "Transparent" "RenderType" = "Transparent" }
+
+		// Makes the water Transparent:
 		Blend SrcAlpha OneMinusSrcAlpha
 		ZWrite Off
 		Cull Off
@@ -55,6 +59,7 @@
                 float4 grabPos : TEXCOORD0;
             };
 
+			// Vertex Shader
             vertexOutput vert(vertexInput input)
             {
                 vertexOutput output;
@@ -76,6 +81,7 @@
                 return output;
             }
 
+			// Fragment Shader:
             float4 frag(vertexOutput input) : COLOR
             {
                 return tex2Dproj(_BackgroundTexture, input.grabPos);
@@ -99,8 +105,10 @@
 	sampler2D _CameraDepthTexture;
 	sampler2D _DepthRampTex;
 
+	// Properties
 	float4 _WaveA;
 	float4 _WaveB;
+	float4 _WaveC;
 	float _Gravity;
 	float _DepthFactor;
 	float4 _Color;
@@ -133,18 +141,21 @@
 		float f = k * (dot(d, p.xz) - (c * _Time.y));
 		float a = steepness / k;
 
+		// Used the chain rule to get the tangent for the lighting:
 		tangent += float3(
 			1 - d.x * d.x * (steepness * sin(f)),
 			d.x * (steepness * cos(f)),
 			-d.x * d.y * (steepness * sin(f))
 			);
 
+		// Oppisite of the tangent:
 		binormal += float3(
 			-d.x * d.y * (steepness * sin(f)),
 			d.y * (steepness * cos(f)),
 			1 - d.y * d.y * (steepness * sin(f))
 			);
 
+		// Return the animation movement:
 		return float3(
 			d.x * (a * cos(f)),
 			a * sin(f),
@@ -152,6 +163,7 @@
 			);
 	}
 
+	// Vertex Shader:
 	vertexOutput vert(vertexInput input) {
 
 		// Waves:
@@ -160,8 +172,10 @@
 		float3 binormal = 0;
 		float3 p = gridPoint;
 
+		// Create three waves:
 		p += GerstnerWave(_WaveA, gridPoint, tangent, binormal);
 		p += GerstnerWave(_WaveB, gridPoint, tangent, binormal);
+		p += GerstnerWave(_WaveC, gridPoint, tangent, binormal);
 
 		float3 normal = normalize(cross(binormal, tangent));
 
@@ -170,7 +184,7 @@
 		// Lighting for wave
 		input.normal = normal;
 
-		// Depth:
+		// Depth effect:
 		vertexOutput output;
 
 		output.pos = UnityObjectToClipPos(input.vertex);
@@ -182,9 +196,10 @@
 		return output;
 	}
 
+	// Fragment Shader:
 	float4 frag(vertexOutput input) : COLOR
 	{
-		// Depth:
+		// Depth foam lines:
 		float4 depthSample = SAMPLE_DEPTH_TEXTURE_PROJ(_CameraDepthTexture, input.screenPos);
 		float depth = LinearEyeDepth(depthSample).r;
 
